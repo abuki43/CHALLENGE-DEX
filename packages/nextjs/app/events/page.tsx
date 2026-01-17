@@ -1,9 +1,11 @@
 "use client";
 
+import { useCallback } from "react";
 import type { NextPage } from "next";
 import { formatEther } from "viem";
 import { Address } from "~~/components/scaffold-eth";
-import { useScaffoldEventHistory } from "~~/hooks/scaffold-eth";
+import { useScaffoldEventHistory, useScaffoldWatchContractEvent } from "~~/hooks/scaffold-eth";
+import { notification } from "~~/utils/scaffold-eth";
 
 const Events: NextPage = () => {
   const { data: EthToTokenEvents, isLoading: isEthToTokenEventsLoading } = useScaffoldEventHistory({
@@ -24,6 +26,38 @@ const Events: NextPage = () => {
   const { data: liquidityRemovedEvents, isLoading: isLiquidityRemovedEventsLoading } = useScaffoldEventHistory({
     contractName: "DEX",
     eventName: "LiquidityRemoved",
+  });
+
+  const { data: approvalEvents, isLoading: isApprovalEventsLoading } = useScaffoldEventHistory({
+    contractName: "Balloons",
+    eventName: "Approval",
+    watch: true,
+  });
+
+  const onApprovalLogs = useCallback(
+    (logs: { args: { owner?: string; spender?: string; value?: bigint } }[]) => {
+      for (const log of logs) {
+        const owner = log.args.owner;
+        const spender = log.args.spender;
+        const value = log.args.value;
+        notification.success(
+          <div>
+            <p className="font-bold m-0">Balloons approve() executed</p>
+            <p className="m-0 text-xs">Owner: {String(owner)}</p>
+            <p className="m-0 text-xs">Spender: {String(spender)}</p>
+            <p className="m-0 text-xs">Amount: {parseFloat(formatEther(value || 0n)).toFixed(4)} BAL</p>
+          </div>,
+          { duration: 4000 },
+        );
+      }
+    },
+    [notification],
+  );
+
+  useScaffoldWatchContractEvent({
+    contractName: "Balloons",
+    eventName: "Approval",
+    onLogs: onApprovalLogs,
   });
 
   return (
@@ -199,6 +233,52 @@ const Events: NextPage = () => {
                           <td>{parseFloat(formatEther(event.args.ethOutput || 0n)).toFixed(4)}</td>
                           <td>{parseFloat(formatEther(event.args.tokensOutput || 0n)).toFixed(4)}</td>
                           <td>{parseFloat(formatEther(event.args.liquidityWithdrawn || 0n)).toFixed(4)}</td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {isApprovalEventsLoading ? (
+          <div className="flex justify-center items-center mt-10">
+            <span className="loading loading-spinner loading-lg"></span>
+          </div>
+        ) : (
+          <div className="mt-8 mb-8">
+            <div className="text-center mb-4">
+              <span className="block text-2xl font-bold">Balloons approve() (Approval) Events</span>
+            </div>
+            <div className="overflow-x-auto shadow-lg mb-5">
+              <table className="table table-zebra w-full">
+                <thead>
+                  <tr>
+                    <th className="bg-primary">Owner</th>
+                    <th className="bg-primary">Spender</th>
+                    <th className="bg-primary">Amount (BAL)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {!approvalEvents || approvalEvents.length === 0 ? (
+                    <tr>
+                      <td colSpan={3} className="text-center">
+                        No events found
+                      </td>
+                    </tr>
+                  ) : (
+                    approvalEvents?.map((event, index) => {
+                      return (
+                        <tr key={index}>
+                          <td className="text-center">
+                            <Address address={event.args.owner} />
+                          </td>
+                          <td className="text-center">
+                            <Address address={event.args.spender} />
+                          </td>
+                          <td>{parseFloat(formatEther(event.args.value || 0n)).toFixed(4)}</td>
                         </tr>
                       );
                     })
